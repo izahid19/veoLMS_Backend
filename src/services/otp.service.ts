@@ -124,4 +124,42 @@ export class OtpService {
 
     await redis.set(cooldownKey, '1', { ex: config.OTP_RESEND_COOLDOWN });
   }
+
+  async verifyForgotPasswordOTP(emailId: string, otp: string): Promise<void> {
+    const user = await this.userRepository.findByEmail(emailId);
+    if (!user) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    const redisKey = `forgot_pwd_otp:${emailId}`;
+    const attemptsKey = `forgot_pwd_otp_attempts:${emailId}`;
+
+    const storedHashedOtp = await redis.get(redisKey);
+    if (!storedHashedOtp) {
+      throw new AppError('OTP expired or not found', 400, 'OTP_EXPIRED');
+    }
+
+    const attemptsStr = await redis.get(attemptsKey);
+    let attempts = attemptsStr ? parseInt(String(attemptsStr), 10) : 0;
+
+    if (attempts >= config.OTP_MAX_VERIFY_ATTEMPTS) {
+      throw new AppError(
+        'Maximum OTP verification attempts reached. Please request a new OTP.',
+        429,
+        'MAX_OTP_ATTEMPTS_REACHED',
+      );
+    }
+
+    const isValid = verifyOTPHash(otp, storedHashedOtp as string);
+
+    if (!isValid) {
+      attempts += 1;
+      await redis.set(attemptsKey, attempts, { keepTtl: true });
+      throw new AppError('Invalid OTP', 400, 'INVALID_OTP');
+    }
+
+    await redis.del(redisKey);
+    await redis.del(attemptsKey);
+    await redis.del(`forgot_pwd_cooldown:${emailId}`);
+  }
 }

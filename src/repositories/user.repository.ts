@@ -18,10 +18,18 @@ export class UserRepository {
     return User.findById(id);
   }
 
+  async findByIdWithRefreshToken(id: string): Promise<IUser | null> {
+    return User.findById(id).select('+refreshToken');
+  }
+
+  async findByIdWithPassword(id: string): Promise<IUser | null> {
+    return User.findById(id).select('+password');
+  }
+
   async findByIdentifier(identifier: string): Promise<IUser | null> {
     return User.findOne({
       $or: [{ emailId: identifier }, { username: identifier }],
-    });
+    }).select('+password');
   }
 
   async update(id: string, updates: Partial<IUser>): Promise<IUser | null> {

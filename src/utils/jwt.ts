@@ -3,10 +3,11 @@ import { config } from '../config/config';
 
 export interface TokenPayload {
   userId: string;
+  role?: string;
 }
 
-export const generateTokens = (userId: string) => {
-  const payload: TokenPayload = { userId };
+export const generateTokens = (userId: string, role?: string) => {
+  const payload: TokenPayload = { userId, role };
 
   const accessToken = jwt.sign(payload, config.JWT_ACCESS_SECRET, {
     expiresIn: config.ACCESS_TOKEN_EXP as any,

@@ -81,7 +81,7 @@ export class AuthController {
       }
 
       const user = await this.authService.loginService(identifier, password);
-      const { accessToken, refreshToken } = generateTokens(user.id.toString());
+      const { accessToken, refreshToken } = generateTokens(user.id.toString(), user.role);
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
@@ -149,6 +149,8 @@ export class AuthController {
           lastName: user.lastName,
           username: user.username,
           emailId: user.emailId,
+          role: user.role,
+          avatar: user.avatar,
           isUserVerify: user.isUserVerify,
         },
       });
@@ -189,6 +191,87 @@ export class AuthController {
           emailId: updatedUser.emailId,
           isUserVerify: updatedUser.isUserVerify,
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  refreshToken = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      // 1. Read refreshToken from the httpOnly cookie in the request
+      const token = req.cookies?.refreshToken;
+      
+      // The service throws all 401s if token is missing/invalid or user not found
+      const { accessToken } = await this.authService.refreshTokenService(token);
+
+      res.status(200).json({
+        success: true,
+        accessToken,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  resetPassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { emailId, otp, newPassword } = req.body;
+
+      if (!emailId || !otp || !newPassword) {
+        res.status(400).json({
+          success: false,
+          error: 'MISSING_FIELDS',
+          message: 'emailId, otp, and newPassword are required',
+        });
+        return;
+      }
+
+      await this.authService.resetPasswordService(emailId, otp, newPassword);
+
+      res.status(200).json({
+        success: true,
+        message: 'Password reset successful',
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  uploadAvatar = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const user = await this.authService.uploadAvatar(req);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Avatar updated',
+        user: {
+          id: user?._id,
+          firstName: user?.firstName,
+          lastName: user?.lastName,
+          username: user?.username,
+          emailId: user?.emailId,
+          avatar: user?.avatar,
+          isUserVerify: user?.isUserVerify,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  changePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = (req as any).userId;
+      const { currentPassword, newPassword } = req.body;
+
+      await this.authService.changePasswordService(userId, currentPassword, newPassword);
+
+      res.clearCookie('refreshToken');
+
+      res.status(200).json({
+        success: true,
+        message: 'Password changed. Please login again.',
       });
     } catch (error) {
       next(error);

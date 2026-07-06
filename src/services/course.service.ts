@@ -1,0 +1,369 @@
+import slugify from 'slugify';
+import { v2 as cloudinary } from 'cloudinary';
+import { AppError } from '../utils/error';
+import { CourseRepository } from '../repositories/course.repository';
+import { SectionRepository } from '../repositories/section.repository';
+import { LessonRepository } from '../repositories/lesson.repository';
+import { ICourse } from '../models/course.model';
+import { ISection } from '../models/section.model';
+import { ILesson } from '../models/lesson.model';
+import Enrollment from '../models/enrollment.model';
+import Progress from '../models/progress.model';
+import Payment from '../models/payment.model';
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function generateSlug(title: string): string {
+  return slugify(title, { lower: true, strict: true });
+}
+
+function randomSuffix(): string {
+  return Math.random().toString(36).substring(2, 6);
+}
+
+async function safeCloudinaryDestroy(publicId: string, resourceType: 'image' | 'video' = 'image'): Promise<void> {
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+  } catch (err) {
+    console.error(`[Cloudinary] Failed to delete ${resourceType} ${publicId}:`, err);
+  }
+}
+
+function extractPublicId(url: string): string {
+  // Cloudinary URL pattern: .../upload/v1234567890/folder/filename.ext
+  const parts = url.split('/');
+  const uploadIndex = parts.indexOf('upload');
+  if (uploadIndex === -1) return '';
+  // Skip the version segment (v12345) then join the rest without extension
+  const pathParts = parts.slice(uploadIndex + 2);
+  const last = pathParts[pathParts.length - 1];
+  pathParts[pathParts.length - 1] = last.replace(/\.[^.]+$/, '');
+  return pathParts.join('/');
+}
+
+// ─── Service ───────────────────────────────────────────────────────────────────
+
+export class CourseService {
+  constructor(
+    private courseRepository: CourseRepository,
+    private sectionRepository: SectionRepository,
+    private lessonRepository: LessonRepository,
+  ) {}
+
+  // ── Courses ────────────────────────────────────────────────────────────────
+
+  async createCourse(data: Partial<ICourse>, instructorId: string): Promise<ICourse> {
+    let slug = generateSlug(data.title as string);
+
+    const existing = await this.courseRepository.findBySlug(slug);
+    if (existing) {
+      slug = `${slug}-${randomSuffix()}`;
+    }
+
+    const course = await this.courseRepository.create({
+      ...data,
+      slug,
+      instructor: instructorId as any,
+    });
+
+    return course;
+  }
+
+  async getAllCourses(isPublished?: boolean): Promise<ICourse[]> {
+    const filters = isPublished !== undefined ? { isPublished } : {};
+    return this.courseRepository.findAll(filters);
+  }
+
+  private buildCourseDetail(courseDoc: any, sectionsDocs: any[], lessonsDocs: any[]): any {
+    const course = courseDoc.toObject ? courseDoc.toObject() : JSON.parse(JSON.stringify(courseDoc));
+    const sections = sectionsDocs.map((s) => (s.toObject ? s.toObject() : JSON.parse(JSON.stringify(s))));
+    const lessons = lessonsDocs.map((l) => (l.toObject ? l.toObject() : JSON.parse(JSON.stringify(l))));
+
+    course.sections = sections.map((sec: any) => {
+      sec.lessons = lessons.filter((les: any) => les.section.toString() === sec._id.toString());
+      sec.lessons.sort((a: any, b: any) => a.order - b.order);
+      return sec;
+    });
+    course.sections.sort((a: any, b: any) => a.order - b.order);
+    
+    return course;
+  }
+
+  async getCourseBySlug(slug: string): Promise<any> {
+    const course = await this.courseRepository.findBySlug(slug);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    const sections = await this.sectionRepository.findByCourse(course._id.toString());
+    const lessons = await this.lessonRepository.findByCourse(course._id.toString());
+
+    return this.buildCourseDetail(course, sections, lessons);
+  }
+
+  async getCourseById(id: string): Promise<any> {
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+    
+    const sections = await this.sectionRepository.findByCourse(id);
+    const lessons = await this.lessonRepository.findByCourse(id);
+
+    return this.buildCourseDetail(course, sections, lessons);
+  }
+
+  async updateCourse(
+    id: string,
+    data: Partial<ICourse>,
+    requesterId: string,
+    requesterRole: string,
+  ): Promise<ICourse> {
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    const isOwner = course.instructor._id?.toString() === requesterId || course.instructor.toString() === requesterId;
+    if (!isOwner && requesterRole !== 'admin') {
+      throw new AppError('Not authorized to update this course', 403, 'FORBIDDEN');
+    }
+
+    const updatePayload: Partial<ICourse> = { ...data };
+
+    if (data.title && data.title !== course.title) {
+      let newSlug = generateSlug(data.title);
+      const existing = await this.courseRepository.findBySlug(newSlug);
+      if (existing && existing._id.toString() !== id) {
+        newSlug = `${newSlug}-${randomSuffix()}`;
+      }
+      updatePayload.slug = newSlug as any;
+    }
+
+    const updated = await this.courseRepository.update(id, updatePayload);
+    return updated!;
+  }
+
+  async deleteCourse(id: string): Promise<{ message: string }> {
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    // Gather all lessons to delete their Cloudinary videos
+    const lessons = await this.lessonRepository.findByCourse(id);
+    await Promise.all(
+      lessons
+        .filter((l) => l.videoPublicId)
+        .map((l) => safeCloudinaryDestroy(l.videoPublicId, 'video')),
+    );
+
+    // Delete course thumbnail from Cloudinary
+    if (course.thumbnail) {
+      await safeCloudinaryDestroy(extractPublicId(course.thumbnail), 'image');
+    }
+
+    // Cascade: delete sections, enrollments, progress, payments
+    const sections = await this.sectionRepository.findByCourse(id);
+    await Promise.all(sections.map((s) => this.sectionRepository.delete(s._id.toString())));
+
+    await Enrollment.deleteMany({ course: id });
+    await Progress.deleteMany({ course: id });
+    await Payment.deleteMany({ course: id });
+
+    await this.courseRepository.delete(id);
+
+    return { message: 'Course deleted successfully' };
+  }
+
+  async togglePublish(id: string): Promise<ICourse> {
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    const updated = await this.courseRepository.update(id, { isPublished: !course.isPublished } as any);
+    return updated!;
+  }
+
+  // ── Sections ───────────────────────────────────────────────────────────────
+
+  async createSection(courseId: string, data: Partial<ISection>): Promise<ISection> {
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    const existing = await this.sectionRepository.findByCourse(courseId);
+    const maxOrder = existing.length > 0 ? Math.max(...existing.map((s) => s.order)) : -1;
+
+    const section = await this.sectionRepository.create({
+      ...data,
+      course: courseId as any,
+      order: maxOrder + 1,
+    });
+
+    return section;
+  }
+
+  async updateSection(id: string, data: Partial<ISection>): Promise<ISection> {
+    const updated = await this.sectionRepository.update(id, data);
+    if (!updated) {
+      throw new AppError('Section not found', 404, 'SECTION_NOT_FOUND');
+    }
+    return updated;
+  }
+
+  async deleteSection(id: string): Promise<{ message: string }> {
+    const section = await this.sectionRepository.findById(id);
+    if (!section) {
+      throw new AppError('Section not found', 404, 'SECTION_NOT_FOUND');
+    }
+
+    // Delete Cloudinary videos for all lessons in this section
+    const lessons = await this.lessonRepository.findBySection(id);
+    await Promise.all(
+      lessons
+        .filter((l) => l.videoPublicId)
+        .map((l) => safeCloudinaryDestroy(l.videoPublicId, 'video')),
+    );
+
+    // Cascade delete lessons + section (section.repository handles this atomically)
+    await this.sectionRepository.delete(id);
+
+    return { message: 'Section deleted successfully' };
+  }
+
+  // ── Lessons ────────────────────────────────────────────────────────────────
+
+  async createLesson(sectionId: string, courseId: string, data: Partial<ILesson>): Promise<ILesson> {
+    const [section, course] = await Promise.all([
+      this.sectionRepository.findById(sectionId),
+      this.courseRepository.findById(courseId),
+    ]);
+
+    if (!section) throw new AppError('Section not found', 404, 'SECTION_NOT_FOUND');
+    if (!course) throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+
+    const existing = await this.lessonRepository.findBySection(sectionId);
+    const maxOrder = existing.length > 0 ? Math.max(...existing.map((l) => l.order)) : -1;
+
+    const lesson = await this.lessonRepository.create({
+      ...data,
+      section: sectionId as any,
+      course: courseId as any,
+      order: maxOrder + 1,
+    });
+
+    // Increment totalLessons on the course
+    await this.courseRepository.update(courseId, {
+      totalLessons: course.totalLessons + 1,
+    } as any);
+
+    return lesson;
+  }
+
+  async updateLesson(id: string, data: Partial<ILesson>): Promise<ILesson> {
+    const updated = await this.lessonRepository.update(id, data);
+    if (!updated) {
+      throw new AppError('Lesson not found', 404, 'LESSON_NOT_FOUND');
+    }
+    return updated;
+  }
+
+  async deleteLesson(id: string): Promise<{ message: string }> {
+    const lesson = await this.lessonRepository.findById(id);
+    if (!lesson) {
+      throw new AppError('Lesson not found', 404, 'LESSON_NOT_FOUND');
+    }
+
+    if (lesson.videoPublicId) {
+      await safeCloudinaryDestroy(lesson.videoPublicId, 'video');
+    }
+
+    await this.lessonRepository.delete(id);
+
+    // Decrement totalLessons and recalculate totalDuration
+    const course = await this.courseRepository.findById(lesson.course.toString());
+    if (course) {
+      const remainingLessons = await this.lessonRepository.findByCourse(lesson.course.toString());
+      const totalDuration = remainingLessons.reduce((sum, l) => sum + l.duration, 0);
+
+      await this.courseRepository.update(lesson.course.toString(), {
+        totalLessons: Math.max(0, course.totalLessons - 1),
+        totalDuration,
+      } as any);
+    }
+
+    return { message: 'Lesson deleted successfully' };
+  }
+
+  async uploadLessonVideo(lessonId: string, file: Express.Multer.File): Promise<ILesson> {
+    const lesson = await this.lessonRepository.findById(lessonId);
+    if (!lesson) {
+      throw new AppError('Lesson not found', 404, 'LESSON_NOT_FOUND');
+    }
+
+    // Delete old video from Cloudinary if one exists
+    if (lesson.videoPublicId) {
+      await safeCloudinaryDestroy(lesson.videoPublicId, 'video');
+    }
+
+    // multer-storage-cloudinary puts the Cloudinary response on file
+    const cloudinaryFile = file as any;
+    const newVideoUrl: string = cloudinaryFile.path;
+    const newPublicId: string = cloudinaryFile.filename;
+    let newDuration: number = cloudinaryFile.duration ?? 0;
+
+    if (!newDuration && newPublicId) {
+      try {
+        const details = await cloudinary.api.resource(newPublicId, { resource_type: 'video', media_metadata: true });
+        newDuration = details.duration || 0;
+      } catch (err) {
+        console.error('[Cloudinary] Failed to fetch video duration:', err);
+      }
+    }
+
+    const updated = await this.lessonRepository.update(lessonId, {
+      videoUrl: newVideoUrl,
+      videoPublicId: newPublicId,
+      duration: newDuration,
+    } as any);
+
+    // Recalculate totalDuration on the course
+    const allLessons = await this.lessonRepository.findByCourse(lesson.course.toString());
+    const totalDuration = allLessons.reduce((sum, l) => {
+      return sum + (l._id.toString() === lessonId ? newDuration : l.duration);
+    }, 0);
+
+    await this.courseRepository.update(lesson.course.toString(), { totalDuration } as any);
+
+    return updated!;
+  }
+
+  async uploadCourseThumbnail(courseId: string, file: Express.Multer.File): Promise<ICourse> {
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    // Delete old thumbnail from Cloudinary if one exists
+    if (course.thumbnail) {
+      await safeCloudinaryDestroy(extractPublicId(course.thumbnail), 'image');
+    }
+
+    const newThumbnailUrl: string = (file as any).path;
+    const updated = await this.courseRepository.update(courseId, { thumbnail: newThumbnailUrl } as any);
+
+    return updated!;
+  }
+
+  async reorderSections(updates: Array<{ id: string; order: number }>): Promise<void> {
+    await this.sectionRepository.reorder(updates);
+  }
+
+  async reorderLessons(updates: Array<{ id: string; order: number }>): Promise<void> {
+    await this.lessonRepository.reorder(updates);
+  }
+}
+

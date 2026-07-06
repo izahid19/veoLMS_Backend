@@ -7,6 +7,7 @@ declare global {
   namespace Express {
     interface Request {
       userId?: string;
+      userRole?: string;
     }
   }
 }
@@ -25,9 +26,10 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
       throw new AppError('Not authenticated', 401, 'UNAUTHORIZED');
     }
 
-    const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET) as { userId: string };
-    
+    const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET) as { userId: string; role: string };
+
     req.userId = decoded.userId;
+    req.userRole = decoded.role;
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
@@ -36,4 +38,13 @@ export const requireAuth = (req: Request, res: Response, next: NextFunction) => 
       next(new AppError('Not authenticated', 401, 'UNAUTHORIZED'));
     }
   }
+};
+
+export const requireRole = (...roles: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.userRole || !roles.includes(req.userRole)) {
+      return next(new AppError('Forbidden: insufficient permissions', 403, 'FORBIDDEN'));
+    }
+    next();
+  };
 };

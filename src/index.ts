@@ -11,6 +11,7 @@ import { reqLogger } from './middleware/req.middleware';
 import { errorHandler } from './middleware/error.middleware';
 import { csrfMiddleware } from './middleware/csrf.middleware';
 import authRoute from './routes/auth.route';
+import courseRoute from './routes/course.route';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 const app: Application = express();
@@ -36,6 +37,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/api/auth', authRoute);
+app.use('/api', courseRoute);
 
 // Swagger Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
