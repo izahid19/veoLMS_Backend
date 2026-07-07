@@ -33,6 +33,6 @@ export class UserRepository {
   }
 
   async update(id: string, updates: Partial<IUser>): Promise<IUser | null> {
-    return User.findByIdAndUpdate(id, { $set: updates }, { new: true, runValidators: true }).select('-password');
+    return User.findByIdAndUpdate(id, { $set: updates }, { returnDocument: 'after', runValidators: true }).select('-password');
   }
 }

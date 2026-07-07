@@ -6,7 +6,9 @@ import { SectionRepository } from '../repositories/section.repository';
 import { LessonRepository } from '../repositories/lesson.repository';
 import { requireAuth } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/auth.middleware';
+import { optionalAuth } from '../middleware/optionalAuth.middleware';
 import { validateRequest } from '../middleware/validate.middleware';
+import { EnrollmentRepository } from '../repositories/enrollment.repository';
 import { generalLimiter } from '../middleware/rateLimiter.middleware';
 import { uploadSingle, uploadVideo } from '../middleware/upload.middleware';
 import {
@@ -24,7 +26,8 @@ const router = Router();
 const courseRepository = new CourseRepository();
 const sectionRepository = new SectionRepository();
 const lessonRepository = new LessonRepository();
-const courseService = new CourseService(courseRepository, sectionRepository, lessonRepository);
+const enrollmentRepository = new EnrollmentRepository();
+const courseService = new CourseService(courseRepository, sectionRepository, lessonRepository, enrollmentRepository);
 const courseController = new CourseController(courseService);
 
 // ─── Tags ──────────────────────────────────────────────────────────────────────
@@ -87,6 +90,30 @@ router.get('/courses', generalLimiter, (req, res, next) => {
  *         description: Course not found
  */
 router.get('/courses/:slug', generalLimiter, courseController.getCourseBySlug);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PUBLIC COURSE ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * @swagger
+ * /api/lessons/{lessonId}/watch:
+ *   get:
+ *     summary: Get lesson for watching (handles access control and signed URLs)
+ *     tags: [Courses]
+ *     parameters:
+ *       - in: path
+ *         name: lessonId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lesson data and access status
+ *       404:
+ *         description: Lesson not found
+ */
+router.get('/lessons/:lessonId/watch', generalLimiter, optionalAuth, courseController.getLessonForWatch);
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN COURSE ROUTES

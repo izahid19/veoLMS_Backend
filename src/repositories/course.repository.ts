@@ -51,7 +51,7 @@ export class CourseRepository {
   }
 
   async update(id: string, data: Partial<ICourse>): Promise<ICourse | null> {
-    return Course.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+    return Course.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', runValidators: true });
   }
 
   async delete(id: string): Promise<ICourse | null> {

@@ -1,6 +1,6 @@
 import redis from '../config/redis';
 import { generateOTP, hashOTP, verifyOTPHash } from '../utils/otp';
-import { sendOTPEmail } from '../utils/email';
+import { sendOtpEmail } from './email.service';
 import { config } from '../config/config';
 import { AppError } from '../utils/error';
 import { UserRepository } from '../repositories/user.repository';
@@ -25,7 +25,7 @@ export class OtpService {
     await redis.set(redisKey, hashedOtp, { ex: config.OTP_TTL });
     await redis.set(`otp_attempts:${emailId}`, 0, { ex: config.OTP_TTL });
 
-    await sendOTPEmail(user.emailId, user.firstName, otp);
+    await sendOtpEmail({ email: user.emailId, firstName: user.firstName }, otp, 'verify');
   }
 
   async verifyOTP(emailId: string, otp: string): Promise<void> {
@@ -104,7 +104,7 @@ export class OtpService {
     await redis.set(redisKey, hashedOtp, { ex: config.OTP_TTL });
     await redis.set(`forgot_pwd_otp_attempts:${emailId}`, 0, { ex: config.OTP_TTL });
 
-    await sendOTPEmail(user.emailId, user.firstName, otp);
+    await sendOtpEmail({ email: user.emailId, firstName: user.firstName }, otp, 'reset');
   }
 
   async resendForgotPasswordOTP(emailId: string): Promise<void> {

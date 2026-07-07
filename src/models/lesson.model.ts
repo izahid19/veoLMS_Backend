@@ -9,6 +9,8 @@ export interface ILesson extends Document {
   duration: number;
   order: number;
   isFree: boolean;
+  content: string;
+  resources: { title: string; url: string }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +54,16 @@ const LessonSchema: Schema<ILesson> = new Schema(
       type: Boolean,
       default: false,
     },
+    content: {
+      type: String,
+      default: '',
+    },
+    resources: [
+      {
+        title: { type: String, required: true },
+        url: { type: String, required: true },
+      },
+    ],
   },
   {
     timestamps: true,

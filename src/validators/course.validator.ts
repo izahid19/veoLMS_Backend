@@ -75,6 +75,11 @@ export const updateLessonSchema = z.object({
   isFree: z.boolean().optional(),
   videoUrl: z.string().nullable().optional(),
   videoPublicId: z.string().nullable().optional(),
+  content: z.string().optional(),
+  resources: z.array(z.object({
+    title: z.string().min(1, 'Title is required'),
+    url: z.string().url('Must be a valid URL')
+  })).optional(),
 });
 
 // ─── Inferred Types ────────────────────────────────────────────────────────────

@@ -190,6 +190,20 @@ export class CourseController {
 
   // ── Lessons ────────────────────────────────────────────────────────────────
 
+  getLessonForWatch = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const lessonId = param(req, 'lessonId');
+      const userId = req.userId;
+      const userRole = req.userRole;
+
+      const result = await this.courseService.getLessonForWatch(lessonId, userId, userRole);
+
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   createLesson = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const sectionId = param(req, 'sectionId');

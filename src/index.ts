@@ -12,6 +12,9 @@ import { errorHandler } from './middleware/error.middleware';
 import { csrfMiddleware } from './middleware/csrf.middleware';
 import authRoute from './routes/auth.route';
 import courseRoute from './routes/course.route';
+import enrollmentRoute from './routes/enrollment.route';
+import paymentRoute from './routes/payment.route';
+import adminRoute from './routes/admin.route';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 const app: Application = express();
@@ -38,6 +41,9 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', authRoute);
 app.use('/api', courseRoute);
+app.use('/api', enrollmentRoute);
+app.use('/api', paymentRoute);
+app.use('/api', adminRoute);
 
 // Swagger Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

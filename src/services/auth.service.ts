@@ -7,6 +7,10 @@ import { config } from '../config/config';
 import { OtpService } from './otp.service';
 import { UserRepository } from '../repositories/user.repository';
 import { SignupPayload } from '../types/auth.types';
+import {
+  sendWelcomeEmail,
+  sendPasswordChangedEmail,
+} from './email.service';
 
 export class AuthService {
   constructor(
@@ -39,6 +43,9 @@ export class AuthService {
     });
 
     await this.otpService.sendOTP(user.emailId);
+
+    // Fire-and-forget welcome email (email service swallows its own errors)
+    sendWelcomeEmail({ email: user.emailId, firstName: user.firstName });
 
     return {
       id: user._id,
@@ -141,6 +148,9 @@ export class AuthService {
       refreshToken: null as any 
     });
 
+    // Fire-and-forget password changed notification
+    sendPasswordChangedEmail({ email: user.emailId, firstName: user.firstName });
+
     return true;
   }
 
@@ -159,6 +169,9 @@ export class AuthService {
       password: hashedPassword,
       refreshToken: null as any
     });
+
+    // Fire-and-forget password changed notification
+    sendPasswordChangedEmail({ email: user.emailId, firstName: user.firstName });
   }
 
   async refreshTokenService(token: string) {

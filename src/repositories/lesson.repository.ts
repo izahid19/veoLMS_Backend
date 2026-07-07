@@ -18,7 +18,7 @@ export class LessonRepository {
   }
 
   async update(id: string, data: Partial<ILesson>): Promise<ILesson | null> {
-    return Lesson.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+    return Lesson.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', runValidators: true });
   }
 
   async delete(id: string): Promise<ILesson | null> {

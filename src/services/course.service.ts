@@ -4,6 +4,7 @@ import { AppError } from '../utils/error';
 import { CourseRepository } from '../repositories/course.repository';
 import { SectionRepository } from '../repositories/section.repository';
 import { LessonRepository } from '../repositories/lesson.repository';
+import { EnrollmentRepository } from '../repositories/enrollment.repository';
 import { ICourse } from '../models/course.model';
 import { ISection } from '../models/section.model';
 import { ILesson } from '../models/lesson.model';
@@ -48,6 +49,7 @@ export class CourseService {
     private courseRepository: CourseRepository,
     private sectionRepository: SectionRepository,
     private lessonRepository: LessonRepository,
+    private enrollmentRepository: EnrollmentRepository,
   ) {}
 
   // ── Courses ────────────────────────────────────────────────────────────────
@@ -74,10 +76,19 @@ export class CourseService {
     return this.courseRepository.findAll(filters);
   }
 
-  private buildCourseDetail(courseDoc: any, sectionsDocs: any[], lessonsDocs: any[]): any {
+  private buildCourseDetail(courseDoc: any, sectionsDocs: any[], lessonsDocs: any[], enrollmentCount: number = 0, isAdmin: boolean = false): any {
     const course = courseDoc.toObject ? courseDoc.toObject() : JSON.parse(JSON.stringify(courseDoc));
-    const sections = sectionsDocs.map((s) => (s.toObject ? s.toObject() : JSON.parse(JSON.stringify(s))));
-    const lessons = lessonsDocs.map((l) => (l.toObject ? l.toObject() : JSON.parse(JSON.stringify(l))));
+    const sections = sectionsDocs.map((s: any) => (s.toObject ? s.toObject() : JSON.parse(JSON.stringify(s))));
+    const lessons = lessonsDocs.map((l: any) => {
+      const lessonObj = l.toObject ? l.toObject() : JSON.parse(JSON.stringify(l));
+      if (!isAdmin) {
+        delete lessonObj.videoUrl;
+        delete lessonObj.videoPublicId;
+      }
+      return lessonObj;
+    });
+
+    course.enrollmentCount = enrollmentCount;
 
     course.sections = sections.map((sec: any) => {
       sec.lessons = lessons.filter((les: any) => les.section.toString() === sec._id.toString());
@@ -97,8 +108,9 @@ export class CourseService {
 
     const sections = await this.sectionRepository.findByCourse(course._id.toString());
     const lessons = await this.lessonRepository.findByCourse(course._id.toString());
+    const enrollmentCount = await this.courseRepository.countEnrollments(course._id.toString());
 
-    return this.buildCourseDetail(course, sections, lessons);
+    return this.buildCourseDetail(course, sections, lessons, enrollmentCount, false);
   }
 
   async getCourseById(id: string): Promise<any> {
@@ -109,8 +121,9 @@ export class CourseService {
     
     const sections = await this.sectionRepository.findByCourse(id);
     const lessons = await this.lessonRepository.findByCourse(id);
+    const enrollmentCount = await this.courseRepository.countEnrollments(id);
 
-    return this.buildCourseDetail(course, sections, lessons);
+    return this.buildCourseDetail(course, sections, lessons, enrollmentCount, true);
   }
 
   async updateCourse(
@@ -236,6 +249,58 @@ export class CourseService {
 
   // ── Lessons ────────────────────────────────────────────────────────────────
 
+  async getLessonForWatch(lessonId: string, userId?: string, userRole?: string): Promise<any> {
+    const lessonDoc = await this.lessonRepository.findById(lessonId);
+    if (!lessonDoc) {
+      throw new AppError('Lesson not found', 404, 'LESSON_NOT_FOUND');
+    }
+
+    const courseId = lessonDoc.course.toString();
+    const courseDoc = await this.courseRepository.findById(courseId);
+    if (!courseDoc) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    const lesson = lessonDoc.toObject ? lessonDoc.toObject() : JSON.parse(JSON.stringify(lessonDoc));
+    const courseSlug = courseDoc.slug;
+
+    // Filtered lesson data to always include
+    const lessonData = {
+      _id: lesson._id,
+      title: lesson.title,
+      duration: lesson.duration,
+      order: lesson.order,
+      isFree: lesson.isFree,
+      section: lesson.section,
+      course: lesson.course,
+    };
+
+    if (lesson.isFree) {
+      return { 
+        canAccess: true, 
+        lesson: { ...lessonData, videoUrl: lesson.videoUrl }, 
+        isFree: true,
+        courseSlug 
+      };
+    }
+
+    if (!userId) {
+      return { canAccess: false, reason: 'login_required', courseSlug, lesson: lessonData };
+    }
+
+    if (userRole === 'admin') {
+      return { canAccess: true, lesson: { ...lessonData, videoUrl: lesson.videoUrl }, isFree: false, courseSlug };
+    }
+
+    const enrollment = await this.enrollmentRepository.findByStudentAndCourse(userId, courseId);
+    if (!enrollment) {
+      return { canAccess: false, reason: 'not_enrolled', courseSlug, lesson: lessonData };
+    }
+
+    // User is enrolled — return the video URL directly
+    return { canAccess: true, lesson: { ...lessonData, videoUrl: lesson.videoUrl }, isFree: false, courseSlug };
+  }
+
   async createLesson(sectionId: string, courseId: string, data: Partial<ILesson>): Promise<ILesson> {
     const [section, course] = await Promise.all([
       this.sectionRepository.findById(sectionId),
@@ -264,11 +329,19 @@ export class CourseService {
   }
 
   async updateLesson(id: string, data: Partial<ILesson>): Promise<ILesson> {
-    const updated = await this.lessonRepository.update(id, data);
-    if (!updated) {
+    const existing = await this.lessonRepository.findById(id);
+    if (!existing) {
       throw new AppError('Lesson not found', 404, 'LESSON_NOT_FOUND');
     }
-    return updated;
+
+    // If the frontend explicitly sends an empty videoUrl to remove the video
+    if (data.videoUrl === '' && existing.videoPublicId) {
+      await safeCloudinaryDestroy(existing.videoPublicId, 'video');
+      data.duration = 0; // reset duration as well
+    }
+
+    const updated = await this.lessonRepository.update(id, data);
+    return updated!;
   }
 
   async deleteLesson(id: string): Promise<{ message: string }> {

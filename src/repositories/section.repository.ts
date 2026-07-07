@@ -16,7 +16,7 @@ export class SectionRepository {
   }
 
   async update(id: string, data: Partial<ISection>): Promise<ISection | null> {
-    return Section.findByIdAndUpdate(id, { $set: data }, { new: true, runValidators: true });
+    return Section.findByIdAndUpdate(id, { $set: data }, { returnDocument: 'after', runValidators: true });
   }
 
   async delete(id: string): Promise<ISection | null> {
