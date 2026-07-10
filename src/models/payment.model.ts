@@ -7,6 +7,11 @@ export interface IPayment extends Document {
   razorpayPaymentId: string;
   razorpaySignature: string;
   amount: number;
+  originalAmount: number;
+  couponCode: string | null;
+  couponDiscount: number;
+  taxAmount: number;
+  taxPercent: number;
   status: 'pending' | 'completed' | 'failed';
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +46,26 @@ const PaymentSchema: Schema<IPayment> = new Schema(
       type: Number,
       required: [true, 'Amount is required'],
       min: [0, 'Amount cannot be negative'],
+    },
+    originalAmount: {
+      type: Number,
+      default: 0,
+    },
+    couponCode: {
+      type: String,
+      default: null,
+    },
+    couponDiscount: {
+      type: Number,
+      default: 0,
+    },
+    taxAmount: {
+      type: Number,
+      default: 0,
+    },
+    taxPercent: {
+      type: Number,
+      default: 0,
     },
     status: {
       type: String,

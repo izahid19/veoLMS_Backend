@@ -10,9 +10,9 @@ export class PaymentController {
   createOrder = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const studentId = req.userId as string;
-      const { courseId } = req.body as { courseId: string };
+      const { courseId, couponCode } = req.body as { courseId: string; couponCode?: string };
 
-      const result = await this.paymentService.createOrder(studentId, courseId);
+      const result = await this.paymentService.createOrder(studentId, courseId, couponCode);
 
       res.status(201).json({ success: true, data: result });
     } catch (error) {

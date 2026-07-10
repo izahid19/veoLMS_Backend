@@ -15,6 +15,7 @@ import courseRoute from './routes/course.route';
 import enrollmentRoute from './routes/enrollment.route';
 import paymentRoute from './routes/payment.route';
 import adminRoute from './routes/admin.route';
+import couponRoute from './routes/coupon.route';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 const app: Application = express();
@@ -44,6 +45,7 @@ app.use('/api', courseRoute);
 app.use('/api', enrollmentRoute);
 app.use('/api', paymentRoute);
 app.use('/api', adminRoute);
+app.use('/api', couponRoute);
 
 // Swagger Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

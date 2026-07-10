@@ -4,6 +4,8 @@ import { generateTokens } from '../utils/jwt';
 import User from '../models/user.model';
 import { AppError } from '../utils/error';
 
+let loginCounter = 0;
+
 export class AuthController {
   constructor(private authService: AuthService) {}
 
@@ -96,6 +98,9 @@ export class AuthController {
         sameSite: 'strict',
         maxAge: 15 * 60 * 1000,
       });
+
+      loginCounter++;
+      console.log(`[LOGIN] User ${user.username} logged in at ${new Date().toISOString()}. Total logins: ${loginCounter}`);
 
       res.status(200).json({
         success: true,

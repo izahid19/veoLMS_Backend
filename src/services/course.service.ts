@@ -11,6 +11,7 @@ import { ILesson } from '../models/lesson.model';
 import Enrollment from '../models/enrollment.model';
 import Progress from '../models/progress.model';
 import Payment from '../models/payment.model';
+import { calculatePrice } from '../utils/price.util';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,9 +72,29 @@ export class CourseService {
     return course;
   }
 
-  async getAllCourses(isPublished?: boolean): Promise<ICourse[]> {
+  async getAllCourses(isPublished?: boolean): Promise<any[]> {
     const filters = isPublished !== undefined ? { isPublished } : {};
-    return this.courseRepository.findAll(filters);
+    const courses = await this.courseRepository.findAll(filters);
+
+    return courses.map((c: any) => {
+      const course = c.toObject ? c.toObject() : JSON.parse(JSON.stringify(c));
+      const breakdown = calculatePrice({
+        price: course.price,
+        discountPercent: course.discountPercent || 0,
+        discountExpiresAt: course.discountExpiresAt,
+        taxPercent: course.taxPercent || 18,
+      });
+
+      return {
+        ...course,
+        effectivePrice: breakdown.totalAmount,
+        discountedPrice: breakdown.discountedPrice,
+        discountPercent: breakdown.discountPercent,
+        taxPercent: breakdown.taxPercent,
+        originalPrice: course.price,
+        isFree: breakdown.isFree,
+      };
+    });
   }
 
   private buildCourseDetail(courseDoc: any, sectionsDocs: any[], lessonsDocs: any[], enrollmentCount: number = 0, isAdmin: boolean = false): any {
@@ -110,7 +131,23 @@ export class CourseService {
     const lessons = await this.lessonRepository.findByCourse(course._id.toString());
     const enrollmentCount = await this.courseRepository.countEnrollments(course._id.toString());
 
-    return this.buildCourseDetail(course, sections, lessons, enrollmentCount, false);
+    const courseData = this.buildCourseDetail(course, sections, lessons, enrollmentCount, false);
+    
+    const breakdown = calculatePrice({
+      price: course.price,
+      discountPercent: course.discountPercent || 0,
+      discountExpiresAt: course.discountExpiresAt,
+      taxPercent: course.taxPercent || 18,
+    });
+
+    return {
+      course: courseData,
+      sections: courseData.sections,
+      priceBreakdown: {
+        ...breakdown,
+        discountExpiresAt: course.discountExpiresAt,
+      }
+    };
   }
 
   async getCourseById(id: string): Promise<any> {

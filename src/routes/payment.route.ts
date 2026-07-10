@@ -5,6 +5,8 @@ import { PaymentRepository } from '../repositories/payment.repository';
 import { EnrollmentRepository } from '../repositories/enrollment.repository';
 import { CourseRepository } from '../repositories/course.repository';
 import { UserRepository } from '../repositories/user.repository';
+import { CouponRepository } from '../repositories/coupon.repository';
+import { CouponService } from '../services/coupon.service';
 import { requireAuth } from '../middleware/auth.middleware';
 import { validateRequest } from '../middleware/validate.middleware';
 import { createOrderSchema, verifyPaymentSchema } from '../validators/payment.validator';
@@ -16,12 +18,15 @@ const paymentRepository = new PaymentRepository();
 const enrollmentRepository = new EnrollmentRepository();
 const courseRepository = new CourseRepository();
 const userRepository = new UserRepository();
+const couponRepository = new CouponRepository();
+const couponService = new CouponService(couponRepository, courseRepository);
 
 const paymentService = new PaymentService(
   paymentRepository,
   enrollmentRepository,
   courseRepository,
   userRepository,
+  couponService
 );
 const paymentController = new PaymentController(paymentService);
 

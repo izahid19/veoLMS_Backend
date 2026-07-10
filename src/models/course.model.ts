@@ -6,6 +6,9 @@ export interface ICourse extends Document {
   description: string;
   thumbnail: string;
   price: number;
+  discountPercent: number;
+  discountExpiresAt: Date | null;
+  taxPercent: number;
   instructor: Types.ObjectId;
   isPublished: boolean;
   totalDuration: number;
@@ -41,6 +44,22 @@ const CourseSchema: Schema<ICourse> = new Schema(
       type: Number,
       required: [true, 'Price is required'],
       min: [0, 'Price cannot be negative'],
+    },
+    discountPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+    discountExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    taxPercent: {
+      type: Number,
+      default: 18,
+      min: 0,
+      max: 28,
     },
     instructor: {
       type: Schema.Types.ObjectId,

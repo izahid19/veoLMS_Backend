@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 export const createOrderSchema = z.object({
   courseId: z.string().min(1, 'courseId is required'),
+  couponCode: z.string().optional(),
 });
 
 export const verifyPaymentSchema = z.object({

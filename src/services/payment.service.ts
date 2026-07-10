@@ -5,6 +5,8 @@ import { CourseRepository } from '../repositories/course.repository';
 import { EnrollmentRepository } from '../repositories/enrollment.repository';
 import { PaymentRepository } from '../repositories/payment.repository';
 import { UserRepository } from '../repositories/user.repository';
+import { CouponService } from './coupon.service';
+import { calculatePrice } from '../utils/price.util';
 import { sendEnrollmentEmail } from './email.service';
 
 // ─── Razorpay Client (lazy — env vars are not available at import time) ────────
@@ -30,6 +32,7 @@ export interface ICreateOrderResult {
   courseName: string;
   courseId: string;
   keyId: string;
+  priceBreakdown?: any;
 }
 
 export interface IVerifyPaymentData {
@@ -47,11 +50,12 @@ export class PaymentService {
     private enrollmentRepository: EnrollmentRepository,
     private courseRepository: CourseRepository,
     private userRepository: UserRepository,
+    private couponService: CouponService,
   ) {}
 
   // ── Create Razorpay Order ──────────────────────────────────────────────────
 
-  async createOrder(studentId: string, courseId: string): Promise<ICreateOrderResult> {
+  async createOrder(studentId: string, courseId: string, couponCode?: string): Promise<ICreateOrderResult> {
     const course = await this.courseRepository.findById(courseId);
     if (!course) {
       throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
@@ -65,8 +69,21 @@ export class PaymentService {
       throw new AppError('Already enrolled in this course', 400, 'ALREADY_ENROLLED');
     }
 
+    let priceBreakdown;
+    if (couponCode) {
+      const result = await this.couponService.validateCoupon(couponCode, courseId, studentId, course);
+      priceBreakdown = result.priceBreakdown;
+    } else {
+      priceBreakdown = calculatePrice({
+        price: course.price,
+        discountPercent: course.discountPercent || 0,
+        discountExpiresAt: course.discountExpiresAt,
+        taxPercent: course.taxPercent || 18,
+      });
+    }
+
     const razorpayOrder = await getRazorpay().orders.create({
-      amount: course.price,
+      amount: priceBreakdown.totalAmount,
       currency: 'INR',
       receipt: `receipt_${Date.now()}`,
     });
@@ -75,17 +92,23 @@ export class PaymentService {
       student: studentId as any,
       course: courseId as any,
       razorpayOrderId: razorpayOrder.id,
-      amount: course.price,
+      amount: priceBreakdown.totalAmount,
+      originalAmount: course.price,
+      couponCode: couponCode || null,
+      couponDiscount: priceBreakdown.couponDiscount,
+      taxAmount: priceBreakdown.taxAmount,
+      taxPercent: course.taxPercent || 18,
       status: 'pending',
     });
 
     return {
       orderId: razorpayOrder.id,
-      amount: course.price,
+      amount: priceBreakdown.totalAmount,
       currency: 'INR',
       courseName: course.title,
       courseId,
       keyId: process.env.RAZORPAY_TEST_API_KEY!,
+      priceBreakdown,
     };
   }
 
@@ -127,6 +150,10 @@ export class PaymentService {
       payment: updatedPayment!._id as any,
       enrolledAt: new Date(),
     });
+
+    if (payment.couponCode) {
+      await this.couponService.applyCouponUsage(payment.couponCode, studentId);
+    }
 
     // Retrieve course slug for redirect + email
     const course = await this.courseRepository.findById(courseId);
