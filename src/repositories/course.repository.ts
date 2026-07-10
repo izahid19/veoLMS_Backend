@@ -7,7 +7,7 @@ const INSTRUCTOR_POPULATE = {
 };
 
 const LIST_SELECT =
-  '_id title slug thumbnail price isPublished instructor totalLessons totalDuration createdAt';
+  '_id title slug thumbnail price discountPercent discountExpiresAt taxPercent isPublished instructor totalLessons totalDuration createdAt';
 
 export interface CourseFilters {
   isPublished?: boolean;

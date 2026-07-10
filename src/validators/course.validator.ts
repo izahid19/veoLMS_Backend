@@ -29,6 +29,9 @@ export const updateCourseSchema = z
       .optional(),
     price: z.number().min(0, 'Price cannot be negative').optional(),
     isPublished: z.boolean().optional(),
+    discountPercent: z.number().min(0).max(100).optional(),
+    discountExpiresAt: z.string().nullable().optional(),
+    taxPercent: z.number().optional(),
   })
   .refine(
     (data) => Object.values(data).some((v) => v !== undefined),
