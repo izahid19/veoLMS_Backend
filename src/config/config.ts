@@ -30,4 +30,15 @@ export const config = {
   ACCESS_TOKEN_EXP_SEC: Number(process.env.ACCESS_TOKEN_EXP_SEC) || 900,
   REFRESH_TOKEN_EXP_SEC: Number(process.env.REFRESH_TOKEN_EXP_SEC) || 604800,
   REDIS_USER_TTL: Number(process.env.REDIS_USER_TTL) || 86400,
+
+  // ── Bunny Storage (thumbnails, avatars) ────────────────────────────────────
+  BUNNY_STORAGE_ZONE: process.env.BUNNY_STORAGE_ZONE || '',
+  BUNNY_STORAGE_API_KEY: process.env.BUNNY_STORAGE_API_KEY || '',
+  BUNNY_STORAGE_HOST: process.env.BUNNY_STORAGE_HOST || 'de.storage.bunnycdn.com',
+  BUNNY_CDN_URL: process.env.BUNNY_CDN_URL || '',
+
+  // ── Bunny Stream (lesson videos) ───────────────────────────────────────────
+  BUNNY_STREAM_LIBRARY_ID: process.env.BUNNY_STREAM_LIBRARY_ID || '',
+  BUNNY_STREAM_API_KEY: process.env.BUNNY_STREAM_API_KEY || '',
+  BUNNY_STREAM_CDN_HOSTNAME: process.env.BUNNY_STREAM_CDN_HOSTNAME || '',
 } as const;

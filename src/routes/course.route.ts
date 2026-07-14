@@ -10,7 +10,7 @@ import { optionalAuth } from '../middleware/optionalAuth.middleware';
 import { validateRequest } from '../middleware/validate.middleware';
 import { EnrollmentRepository } from '../repositories/enrollment.repository';
 import { generalLimiter } from '../middleware/rateLimiter.middleware';
-import { uploadSingle, uploadVideo } from '../middleware/upload.middleware';
+import { uploadSingle, uploadThumbnail, uploadVideo } from '../middleware/upload.middleware';
 import {
   createCourseSchema,
   updateCourseSchema,
@@ -322,10 +322,10 @@ router.patch('/admin/courses/:id/publish', requireAuth, requireRole('admin'), co
  *           schema:
  *             type: object
  *             properties:
- *               avatar:
+ *               thumbnail:
  *                 type: string
  *                 format: binary
- *                 description: Image file (jpg, jpeg, png, webp — max 2MB)
+ *                 description: Image file (jpg, jpeg, png, webp — max 5MB)
  *     responses:
  *       200:
  *         description: Thumbnail uploaded successfully
@@ -338,7 +338,7 @@ router.put(
   '/admin/courses/:id/thumbnail',
   requireAuth,
   requireRole('admin'),
-  uploadSingle,
+  uploadThumbnail,
   courseController.uploadCourseThumbnail,
 );
 

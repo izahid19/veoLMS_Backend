@@ -35,4 +35,8 @@ export class LessonRepository {
 
     await Lesson.bulkWrite(ops);
   }
+
+  async findByVideoPublicId(videoPublicId: string): Promise<ILesson | null> {
+    return Lesson.findOne({ videoPublicId });
+  }
 }

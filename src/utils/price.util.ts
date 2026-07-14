@@ -1,4 +1,4 @@
-interface PriceBreakdown {
+export interface PriceBreakdown {
   originalPrice: number      // base price in paise
   courseDiscount: number     // amount saved from course discount
   discountedPrice: number    // after course discount

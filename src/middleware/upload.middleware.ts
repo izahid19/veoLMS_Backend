@@ -1,40 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import path from 'path';
+import os from 'os';
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// ── Image uploads (avatars, thumbnails) ───────────────────────────────────────
+// Small files — buffer in memory for a direct PUT to Bunny Storage.
 
-const avatarStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'veolms/avatars',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [{ width: 200, height: 200, crop: 'fill', quality: 'auto' }],
-  } as any,
-});
+const imageMemoryStorage = multer.memoryStorage();
 
-const avatarMulter = multer({
-  storage: avatarStorage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
-  fileFilter: (req, file, cb) => {
+const imageMulter = multer({
+  storage: imageMemoryStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
       cb(new Error('INVALID_TYPE'));
     } else {
       cb(null, true);
     }
   },
-}).single('avatar');
+});
 
 export const uploadSingle = (req: Request, res: Response, next: NextFunction) => {
-  avatarMulter(req, res, (err: any) => {
+  imageMulter.single('avatar')(req, res, (err: any) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ success: false, message: 'File size must be under 2MB' });
+        return res.status(400).json({ success: false, message: 'File size must be under 5MB' });
       }
       return res.status(400).json({ success: false, message: err.message });
     } else if (err) {
@@ -47,20 +37,57 @@ export const uploadSingle = (req: Request, res: Response, next: NextFunction) =>
   });
 };
 
-const videoStorage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'veolms/videos',
-    allowed_formats: ['mp4', 'mov', 'webm', 'mkv'],
-    resource_type: 'video',
-  } as any,
+export const uploadThumbnail = (req: Request, res: Response, next: NextFunction) => {
+  imageMulter.single('thumbnail')(req, res, (err: any) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'File size must be under 5MB' });
+      }
+      return res.status(400).json({ success: false, message: err.message });
+    } else if (err) {
+      if (err.message === 'INVALID_TYPE') {
+        return res.status(400).json({ success: false, message: 'Only image files allowed' });
+      }
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    next();
+  });
+};
+
+// ── Video uploads ─────────────────────────────────────────────────────────────
+// Large files — write to a temp file on disk, then stream to Bunny.
+// This avoids buffering gigabytes of video in server RAM.
+
+const videoDiskStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, os.tmpdir()); // system temp dir
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.mp4';
+    cb(null, `video-${Date.now()}${ext}`);
+  },
 });
 
-const videoMulter = multer({ storage: videoStorage }).single('video');
+const videoMulter = multer({
+  storage: videoDiskStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/x-msvideo'];
+    if (!allowed.includes(file.mimetype)) {
+      cb(new Error('INVALID_VIDEO_TYPE'));
+    } else {
+      cb(null, true);
+    }
+  },
+});
 
 export const uploadVideo = (req: Request, res: Response, next: NextFunction) => {
-  videoMulter(req, res, (err: any) => {
-    if (err) {
+  videoMulter.single('video')(req, res, (err: any) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ success: false, message: err.message });
+    } else if (err) {
+      if (err.message === 'INVALID_VIDEO_TYPE') {
+        return res.status(400).json({ success: false, message: 'Invalid video format. Allowed: mp4, mov, webm, mkv, avi' });
+      }
       return res.status(400).json({ success: false, message: err.message });
     }
     next();

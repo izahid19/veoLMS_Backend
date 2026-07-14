@@ -2,7 +2,8 @@ import bcrypt from 'bcryptjs';
 import { AppError } from '../utils/error';
 import { generateAccessToken } from '../utils/token.util';
 import jwt from 'jsonwebtoken';
-import { v2 as cloudinary } from 'cloudinary';
+import path from 'path';
+import { uploadFileToBunny, deleteFileFromBunny } from './bunny.storage.service';
 import { config } from '../config/config';
 import { OtpService } from './otp.service';
 import { UserRepository } from '../repositories/user.repository';
@@ -216,22 +217,15 @@ export class AuthService {
       throw new AppError('User not found', 404, 'USER_NOT_FOUND');
     }
 
-    const newAvatarUrl = req.file.path;
-
+    // Delete old avatar from Bunny Storage if one exists
     if (user.avatar) {
-      try {
-        const parts = user.avatar.split('/');
-        const filename = parts.pop();
-        const folder = parts.pop();
-        
-        if (filename && folder) {
-          const publicId = `${folder}/${filename.split('.')[0]}`;
-          await cloudinary.uploader.destroy(publicId);
-        }
-      } catch (err) {
-        console.error('Failed to delete old avatar from Cloudinary', err);
-      }
+      await deleteFileFromBunny(user.avatar);
     }
+
+    // Upload new avatar buffer to Bunny Storage
+    const ext = path.extname(req.file.originalname) || '.jpg';
+    const fileName = `avatar-${userId}-${Date.now()}${ext}`;
+    const newAvatarUrl = await uploadFileToBunny(req.file.buffer, fileName, 'avatars');
 
     const updatedUser = await this.userRepository.update(userId, { avatar: newAvatarUrl });
     return updatedUser;
