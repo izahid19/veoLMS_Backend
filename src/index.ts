@@ -20,6 +20,7 @@ import webhookRoute from './routes/webhook.route';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 const app: Application = express();
+app.set('trust proxy', 1);
 const PORT = config.PORT;
 
 // Security & utility middleware
