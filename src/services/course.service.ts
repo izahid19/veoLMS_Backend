@@ -1,5 +1,6 @@
+import fs from 'fs';
+import path from 'path';
 import slugify from 'slugify';
-import { v2 as cloudinary } from 'cloudinary';
 import { AppError } from '../utils/error';
 import { CourseRepository } from '../repositories/course.repository';
 import { SectionRepository } from '../repositories/section.repository';
@@ -12,6 +13,14 @@ import Enrollment from '../models/enrollment.model';
 import Progress from '../models/progress.model';
 import Payment from '../models/payment.model';
 import { calculatePrice } from '../utils/price.util';
+import { uploadFileToBunny, deleteFileFromBunny } from './bunny.storage.service';
+import {
+  createBunnyVideo,
+  uploadBunnyVideo,
+  getBunnyVideoDetails,
+  deleteBunnyVideo,
+  buildPlaybackUrl,
+} from './bunny.stream.service';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -23,24 +32,10 @@ function randomSuffix(): string {
   return Math.random().toString(36).substring(2, 6);
 }
 
-async function safeCloudinaryDestroy(publicId: string, resourceType: 'image' | 'video' = 'image'): Promise<void> {
-  try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
-  } catch (err) {
-    console.error(`[Cloudinary] Failed to delete ${resourceType} ${publicId}:`, err);
-  }
-}
-
-function extractPublicId(url: string): string {
-  // Cloudinary URL pattern: .../upload/v1234567890/folder/filename.ext
-  const parts = url.split('/');
-  const uploadIndex = parts.indexOf('upload');
-  if (uploadIndex === -1) return '';
-  // Skip the version segment (v12345) then join the rest without extension
-  const pathParts = parts.slice(uploadIndex + 2);
-  const last = pathParts[pathParts.length - 1];
-  pathParts[pathParts.length - 1] = last.replace(/\.[^.]+$/, '');
-  return pathParts.join('/');
+/** Derive a unique storage filename from the original file name. */
+function uniqueFileName(originalName: string): string {
+  const ext = path.extname(originalName) || '.jpg';
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
 }
 
 // ─── Service ───────────────────────────────────────────────────────────────────
@@ -200,17 +195,17 @@ export class CourseService {
       throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
     }
 
-    // Gather all lessons to delete their Cloudinary videos
+    // Delete all lesson videos from Bunny Stream
     const lessons = await this.lessonRepository.findByCourse(id);
     await Promise.all(
       lessons
         .filter((l) => l.videoPublicId)
-        .map((l) => safeCloudinaryDestroy(l.videoPublicId, 'video')),
+        .map((l) => deleteBunnyVideo(l.videoPublicId)),
     );
 
-    // Delete course thumbnail from Cloudinary
+    // Delete course thumbnail from Bunny Storage
     if (course.thumbnail) {
-      await safeCloudinaryDestroy(extractPublicId(course.thumbnail), 'image');
+      await deleteFileFromBunny(course.thumbnail);
     }
 
     // Cascade: delete sections, enrollments, progress, payments
@@ -270,12 +265,12 @@ export class CourseService {
       throw new AppError('Section not found', 404, 'SECTION_NOT_FOUND');
     }
 
-    // Delete Cloudinary videos for all lessons in this section
+    // Delete Bunny Stream videos for all lessons in this section
     const lessons = await this.lessonRepository.findBySection(id);
     await Promise.all(
       lessons
         .filter((l) => l.videoPublicId)
-        .map((l) => safeCloudinaryDestroy(l.videoPublicId, 'video')),
+        .map((l) => deleteBunnyVideo(l.videoPublicId)),
     );
 
     // Cascade delete lessons + section (section.repository handles this atomically)
@@ -373,7 +368,7 @@ export class CourseService {
 
     // If the frontend explicitly sends an empty videoUrl to remove the video
     if (data.videoUrl === '' && existing.videoPublicId) {
-      await safeCloudinaryDestroy(existing.videoPublicId, 'video');
+      await deleteBunnyVideo(existing.videoPublicId);
       data.duration = 0; // reset duration as well
     }
 
@@ -388,7 +383,7 @@ export class CourseService {
     }
 
     if (lesson.videoPublicId) {
-      await safeCloudinaryDestroy(lesson.videoPublicId, 'video');
+      await deleteBunnyVideo(lesson.videoPublicId);
     }
 
     await this.lessonRepository.delete(id);
@@ -414,41 +409,61 @@ export class CourseService {
       throw new AppError('Lesson not found', 404, 'LESSON_NOT_FOUND');
     }
 
-    // Delete old video from Cloudinary if one exists
+    // Delete old video from Bunny Stream if one exists
     if (lesson.videoPublicId) {
-      await safeCloudinaryDestroy(lesson.videoPublicId, 'video');
+      await deleteBunnyVideo(lesson.videoPublicId);
     }
 
-    // multer-storage-cloudinary puts the Cloudinary response on file
-    const cloudinaryFile = file as any;
-    const newVideoUrl: string = cloudinaryFile.path;
-    const newPublicId: string = cloudinaryFile.filename;
-    let newDuration: number = cloudinaryFile.duration ?? 0;
+    let tempFilePath: string | null = null;
 
-    if (!newDuration && newPublicId) {
+    try {
+      // multer diskStorage saves to a temp path
+      tempFilePath = file.path;
+      const fileSize = file.size;
+
+      // Step 1 — Create video object in Bunny Stream
+      const videoId = await createBunnyVideo(lesson.title || `lesson-${lessonId}`);
+
+      // Step 2 — Stream file from disk → Bunny (no RAM buffering)
+      const readStream = fs.createReadStream(tempFilePath);
+      await uploadBunnyVideo(videoId, readStream, fileSize);
+
+      // Step 3 — Fetch duration from Bunny
+      let duration = 0;
       try {
-        const details = await cloudinary.api.resource(newPublicId, { resource_type: 'video', media_metadata: true });
-        newDuration = details.duration || 0;
+        const details = await getBunnyVideoDetails(videoId);
+        duration = details.duration;
       } catch (err) {
-        console.error('[Cloudinary] Failed to fetch video duration:', err);
+        console.error('[BunnyStream] Could not fetch video duration:', err);
+      }
+
+      // Step 4 — Build HLS playback URL
+      const videoUrl = buildPlaybackUrl(videoId);
+
+      // Step 5 — Persist in DB
+      const updated = await this.lessonRepository.update(lessonId, {
+        videoUrl,
+        videoPublicId: videoId,
+        duration,
+      } as any);
+
+      // Recalculate totalDuration on the course
+      const allLessons = await this.lessonRepository.findByCourse(lesson.course.toString());
+      const totalDuration = allLessons.reduce((sum, l) => {
+        return sum + (l._id.toString() === lessonId ? duration : l.duration);
+      }, 0);
+
+      await this.courseRepository.update(lesson.course.toString(), { totalDuration } as any);
+
+      return updated!;
+    } finally {
+      // Always clean up the temp file from disk
+      if (tempFilePath) {
+        fs.unlink(tempFilePath, (err) => {
+          if (err) console.error('[Upload] Failed to delete temp file:', tempFilePath, err);
+        });
       }
     }
-
-    const updated = await this.lessonRepository.update(lessonId, {
-      videoUrl: newVideoUrl,
-      videoPublicId: newPublicId,
-      duration: newDuration,
-    } as any);
-
-    // Recalculate totalDuration on the course
-    const allLessons = await this.lessonRepository.findByCourse(lesson.course.toString());
-    const totalDuration = allLessons.reduce((sum, l) => {
-      return sum + (l._id.toString() === lessonId ? newDuration : l.duration);
-    }, 0);
-
-    await this.courseRepository.update(lesson.course.toString(), { totalDuration } as any);
-
-    return updated!;
   }
 
   async uploadCourseThumbnail(courseId: string, file: Express.Multer.File): Promise<ICourse> {
@@ -457,12 +472,15 @@ export class CourseService {
       throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
     }
 
-    // Delete old thumbnail from Cloudinary if one exists
+    // Delete old thumbnail from Bunny Storage if one exists
     if (course.thumbnail) {
-      await safeCloudinaryDestroy(extractPublicId(course.thumbnail), 'image');
+      await deleteFileFromBunny(course.thumbnail);
     }
 
-    const newThumbnailUrl: string = (file as any).path;
+    // Upload new thumbnail buffer to Bunny Storage
+    const fileName = uniqueFileName(file.originalname);
+    const newThumbnailUrl = await uploadFileToBunny(file.buffer, fileName, 'thumbnails');
+
     const updated = await this.courseRepository.update(courseId, { thumbnail: newThumbnailUrl } as any);
 
     return updated!;
@@ -476,4 +494,3 @@ export class CourseService {
     await this.lessonRepository.reorder(updates);
   }
 }
-
