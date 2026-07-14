@@ -342,6 +342,47 @@ router.put(
   courseController.uploadCourseThumbnail,
 );
 
+/**
+ * @swagger
+ * /api/admin/courses/{id}/trailer:
+ *   put:
+ *     summary: Upload or replace course trailer video
+ *     tags: [Admin Courses]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               video:
+ *                 type: string
+ *                 format: binary
+ *                 description: Video file (mp4, mov, webm)
+ *     responses:
+ *       200:
+ *         description: Trailer uploaded successfully
+ *       400:
+ *         description: No file uploaded or invalid type
+ *       404:
+ *         description: Course not found
+ */
+router.put(
+  '/admin/courses/:id/trailer',
+  requireAuth,
+  requireRole('admin'),
+  uploadVideo,
+  courseController.uploadCourseTrailer,
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN SECTION ROUTES
 // ═══════════════════════════════════════════════════════════════════════════════

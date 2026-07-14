@@ -5,6 +5,8 @@ export interface ICourse extends Document {
   slug: string;
   description: string;
   thumbnail: string;
+  trailerUrl: string;
+  trailerPublicId: string;
   price: number;
   discountPercent: number;
   discountExpiresAt: Date | null;
@@ -40,6 +42,14 @@ const CourseSchema: Schema<ICourse> = new Schema(
       type: String,
       default: '',
     },
+    trailerUrl: {
+      type: String,
+      default: '',
+    },
+    trailerPublicId: {
+      type: String,
+      default: '',
+    },
     price: {
       type: Number,
       required: [true, 'Price is required'],
@@ -63,7 +73,7 @@ const CourseSchema: Schema<ICourse> = new Schema(
     },
     instructor: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Instructor',
       required: [true, 'Instructor is required'],
     },
     isPublished: {

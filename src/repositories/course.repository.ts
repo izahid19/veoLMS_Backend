@@ -3,7 +3,7 @@ import Enrollment from '../models/enrollment.model';
 
 const INSTRUCTOR_POPULATE = {
   path: 'instructor',
-  select: 'firstName lastName username avatar',
+  select: 'firstName lastName emailId avatar socialLinks',
 };
 
 const LIST_SELECT =

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
 import { AdminService } from '../services/admin.service';
 import { requireAuth, requireRole } from '../middleware/auth.middleware';
+import { uploadSingle } from '../middleware/upload.middleware';
 
 const router = Router();
 
@@ -65,6 +66,24 @@ const adminOnly = [requireAuth, requireRole('admin')];
  *         description: Forbidden
  */
 router.get('/admin/stats', ...adminOnly, adminController.getStats);
+
+/**
+ * @swagger
+ * /api/admin/instructors:
+ *   get:
+ *     summary: Get all instructors/admins
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: List of instructors
+ */
+router.get('/admin/instructors', ...adminOnly, adminController.getInstructors);
+router.post('/admin/instructors', ...adminOnly, adminController.createInstructor);
+router.put('/admin/instructors/:id', ...adminOnly, adminController.updateInstructor);
+router.delete('/admin/instructors/:id', ...adminOnly, adminController.deleteInstructor);
+router.put('/admin/instructors/:id/avatar', ...adminOnly, uploadSingle, adminController.uploadInstructorAvatar);
 
 /**
  * @swagger
