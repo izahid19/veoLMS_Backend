@@ -97,7 +97,7 @@ export class CourseService {
     const sections = sectionsDocs.map((s: any) => (s.toObject ? s.toObject() : JSON.parse(JSON.stringify(s))));
     const lessons = lessonsDocs.map((l: any) => {
       const lessonObj = l.toObject ? l.toObject() : JSON.parse(JSON.stringify(l));
-      if (!isAdmin) {
+      if (!isAdmin && !lessonObj.isFree) {
         delete lessonObj.videoUrl;
         delete lessonObj.videoPublicId;
       }
