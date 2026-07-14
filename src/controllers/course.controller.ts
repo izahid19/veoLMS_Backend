@@ -128,6 +128,26 @@ export class CourseController {
     }
   };
 
+  uploadCourseTrailer = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ success: false, message: 'No video file uploaded' });
+        return;
+      }
+
+      const id = param(req, 'id');
+      const course = await this.courseService.uploadCourseTrailer(id, req.file);
+
+      res.status(200).json({
+        success: true,
+        message: 'Trailer uploaded successfully',
+        data: course,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
   // ── Sections ───────────────────────────────────────────────────────────────
 
   createSection = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

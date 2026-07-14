@@ -208,6 +208,11 @@ export class CourseService {
       await deleteFileFromBunny(course.thumbnail);
     }
 
+    // Delete course trailer from Bunny Stream
+    if (course.trailerPublicId) {
+      await deleteBunnyVideo(course.trailerPublicId);
+    }
+
     // Cascade: delete sections, enrollments, progress, payments
     const sections = await this.sectionRepository.findByCourse(id);
     await Promise.all(sections.map((s) => this.sectionRepository.delete(s._id.toString())));
@@ -484,6 +489,49 @@ export class CourseService {
     const updated = await this.courseRepository.update(courseId, { thumbnail: newThumbnailUrl } as any);
 
     return updated!;
+  }
+
+  async uploadCourseTrailer(courseId: string, file: Express.Multer.File): Promise<ICourse> {
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    // Delete old trailer from Bunny Stream if one exists
+    if (course.trailerPublicId) {
+      await deleteBunnyVideo(course.trailerPublicId);
+    }
+
+    let tempFilePath: string | null = null;
+
+    try {
+      tempFilePath = file.path;
+      const fileSize = file.size;
+
+      // Step 1 — Create video object in Bunny Stream
+      const videoId = await createBunnyVideo(course.title + ' Trailer');
+
+      // Step 2 — Stream file from disk → Bunny
+      const readStream = fs.createReadStream(tempFilePath);
+      await uploadBunnyVideo(videoId, readStream, fileSize);
+
+      // Step 3 — Build HLS playback URL
+      const trailerUrl = buildPlaybackUrl(videoId);
+
+      // Step 4 — Persist in DB
+      const updated = await this.courseRepository.update(courseId, {
+        trailerUrl,
+        trailerPublicId: videoId,
+      } as any);
+
+      return updated!;
+    } finally {
+      if (tempFilePath) {
+        fs.unlink(tempFilePath, (err) => {
+          if (err) console.error('[Upload] Failed to delete temp file:', tempFilePath, err);
+        });
+      }
+    }
   }
 
   async reorderSections(updates: Array<{ id: string; order: number }>): Promise<void> {
