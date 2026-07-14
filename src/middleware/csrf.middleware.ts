@@ -16,6 +16,9 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) 
     });
   }
 
+  // Always expose it so the frontend can read it if third-party cookies are blocked
+  res.setHeader('x-csrf-token', csrfToken);
+
   // Disable CSRF enforcement in test environment to avoid breaking API tests
   if (process.env.NODE_ENV === 'test') {
     return next();
