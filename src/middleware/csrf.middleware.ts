@@ -11,7 +11,7 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) 
     res.cookie('csrfToken', csrfToken, {
       httpOnly: false, // Must be readable by frontend JS
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
   }
