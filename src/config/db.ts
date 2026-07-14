@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
+import dns from 'dns';
 import { config } from './config';
+
+dns.setServers(['8.8.8.8']);
 
 export const connectDB = async (): Promise<void> => {
   const uri = config.MONGODB_URL;
