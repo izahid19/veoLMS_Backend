@@ -5,7 +5,6 @@ export const config = {
   MONGODB_URL: process.env.MONGODB_URL,
   UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
   UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
-  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
 
   OTP_TTL: Number(process.env.OTP_TTL) || 600, // 10 minutes
   OTP_RESEND_COOLDOWN: Number(process.env.OTP_RESEND_COOLDOWN) || 180, // 3 minutes
