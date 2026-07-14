@@ -1,9 +1,11 @@
 import cors from 'cors';
-import { config } from '../config/config';
 
-const allowedOrigins: string[] = config.ALLOWED_ORIGINS
-  ? config.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : [];
+const allowedOrigins: string[] = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://veo-lms-frontend.vercel.app',
+];
+
 
 export const corsMiddleware = cors({
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
