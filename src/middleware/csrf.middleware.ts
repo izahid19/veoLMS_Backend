@@ -2,6 +2,21 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { AppError } from '../utils/error';
 
+// Public routes that don't require CSRF protection.
+// These are credential-based endpoints — an attacker can't forge them
+// without knowing the user's password/OTP, so CSRF doesn't apply.
+const CSRF_EXEMPT_PATHS = [
+  '/api/auth/login',
+  '/api/auth/signup',
+  '/api/auth/logout',
+  '/api/auth/refresh-token',
+  '/api/auth/forgot-password',
+  '/api/auth/verify-otp',
+  '/api/auth/resend-otp',
+  '/api/auth/resend-forgot-password-otp',
+  '/api/auth/reset-password',
+];
+
 export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) => {
   // Generate a CSRF token if one doesn't exist
   let csrfToken = req.cookies.csrfToken;
@@ -26,6 +41,11 @@ export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) 
 
   // Safe HTTP methods skip the CSRF check
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // Exempt public credential-based routes
+  if (CSRF_EXEMPT_PATHS.includes(req.path) || CSRF_EXEMPT_PATHS.some(p => req.originalUrl.startsWith(p))) {
     return next();
   }
 
