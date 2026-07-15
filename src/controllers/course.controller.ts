@@ -19,7 +19,10 @@ export class CourseController {
       }
       const isPublished = isPublishedParam !== undefined ? isPublishedParam === 'true' : undefined;
 
-      const courses = await this.courseService.getAllCourses(isPublished);
+      const isFeaturedParam = req.query.isFeatured;
+      const isFeatured = isFeaturedParam !== undefined ? isFeaturedParam === 'true' : undefined;
+
+      const courses = await this.courseService.getAllCourses(isPublished, isFeatured);
 
       res.status(200).json({ success: true, data: courses });
     } catch (error) {
@@ -101,6 +104,21 @@ export class CourseController {
       res.status(200).json({
         success: true,
         message: `Course ${course.isPublished ? 'published' : 'unpublished'} successfully`,
+        data: course,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  toggleFeatured = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const id = param(req, 'id');
+      const course = await this.courseService.toggleFeatured(id);
+
+      res.status(200).json({
+        success: true,
+        message: `Course ${course.isFeatured ? 'featured' : 'unfeatured'} successfully`,
         data: course,
       });
     } catch (error) {

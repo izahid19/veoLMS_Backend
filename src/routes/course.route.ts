@@ -61,14 +61,16 @@ const courseController = new CourseController(courseService);
  *         schema:
  *           type: boolean
  *         description: Filter by published status (public endpoint forces true)
+ *       - in: query
+ *         name: isFeatured
+ *         schema:
+ *           type: boolean
+ *         description: Filter by featured status
  *     responses:
  *       200:
  *         description: List of published courses
  */
-router.get('/courses', generalLimiter, (req, res, next) => {
-  req.query.isPublished = 'true';
-  courseController.getAllCourses(req, res, next);
-});
+router.get('/courses', generalLimiter, courseController.getAllCourses);
 
 /**
  * @swagger
@@ -300,6 +302,28 @@ router.delete('/admin/courses/:id', requireAuth, requireRole('admin'), courseCon
  *         description: Course not found
  */
 router.patch('/admin/courses/:id/publish', requireAuth, requireRole('admin'), courseController.togglePublish);
+
+/**
+ * @swagger
+ * /api/admin/courses/{id}/featured:
+ *   patch:
+ *     summary: Toggle course featured status
+ *     tags: [Admin Courses]
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Course featured status toggled
+ *       404:
+ *         description: Course not found
+ */
+router.patch('/admin/courses/:id/featured', requireAuth, requireRole('admin'), courseController.toggleFeatured);
 
 /**
  * @swagger

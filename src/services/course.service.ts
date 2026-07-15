@@ -67,8 +67,10 @@ export class CourseService {
     return course;
   }
 
-  async getAllCourses(isPublished?: boolean): Promise<any[]> {
-    const filters = isPublished !== undefined ? { isPublished } : {};
+  async getAllCourses(isPublished?: boolean, isFeatured?: boolean): Promise<any[]> {
+    const filters: any = {};
+    if (isPublished !== undefined) filters.isPublished = isPublished;
+    if (isFeatured !== undefined) filters.isFeatured = isFeatured;
     const courses = await this.courseRepository.findAll(filters);
 
     return courses.map((c: any) => {
@@ -233,6 +235,16 @@ export class CourseService {
     }
 
     const updated = await this.courseRepository.update(id, { isPublished: !course.isPublished } as any);
+    return updated!;
+  }
+
+  async toggleFeatured(id: string): Promise<ICourse> {
+    const course = await this.courseRepository.findById(id);
+    if (!course) {
+      throw new AppError('Course not found', 404, 'COURSE_NOT_FOUND');
+    }
+
+    const updated = await this.courseRepository.update(id, { isFeatured: !course.isFeatured } as any);
     return updated!;
   }
 

@@ -14,6 +14,7 @@ export const createCourseSchema = z.object({
     .number()
     .min(0, 'Price cannot be negative'),
   isPublished: z.boolean().optional().default(false),
+  isFeatured: z.boolean().optional().default(false),
   instructor: z.string().min(1, 'Instructor is required'),
 });
 
@@ -30,6 +31,7 @@ export const updateCourseSchema = z
       .optional(),
     price: z.number().min(0, 'Price cannot be negative').optional(),
     isPublished: z.boolean().optional(),
+    isFeatured: z.boolean().optional(),
     discountPercent: z.number().min(0).max(100).optional(),
     discountExpiresAt: z.string().nullable().optional(),
     taxPercent: z.number().optional(),

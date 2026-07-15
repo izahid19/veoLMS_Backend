@@ -13,6 +13,7 @@ export interface ICourse extends Document {
   taxPercent: number;
   instructor: Types.ObjectId;
   isPublished: boolean;
+  isFeatured: boolean;
   totalDuration: number;
   totalLessons: number;
   createdAt: Date;
@@ -80,6 +81,10 @@ const CourseSchema: Schema<ICourse> = new Schema(
       type: Boolean,
       default: false,
     },
+    isFeatured: {
+      type: Boolean,
+      default: false,
+    },
     totalDuration: {
       type: Number,
       default: 0,
@@ -95,6 +100,7 @@ const CourseSchema: Schema<ICourse> = new Schema(
 );
 
 CourseSchema.index({ isPublished: 1 });
+CourseSchema.index({ isFeatured: 1 });
 CourseSchema.index({ instructor: 1 });
 
 const Course = mongoose.model<ICourse>('Course', CourseSchema);
