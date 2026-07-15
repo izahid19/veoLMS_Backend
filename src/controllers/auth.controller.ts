@@ -4,7 +4,6 @@ import { generateTokens } from '../utils/jwt';
 import User from '../models/user.model';
 import { AppError } from '../utils/error';
 
-let loginCounter = 0;
 
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -99,14 +98,12 @@ export class AuthController {
         maxAge: 15 * 60 * 1000,
       });
 
-      loginCounter++;
-      console.log(`[LOGIN] User ${user.username} logged in at ${new Date().toISOString()}. Total logins: ${loginCounter}`);
-
+      // Note: accessToken is already set as an httpOnly cookie above.
+      // We do NOT return it in the JSON body to avoid token capture in proxy/CDN logs.
       res.status(200).json({
         success: true,
         message: 'Login successful',
         data: user,
-        accessToken,
       });
     } catch (error) {
       next(error);
