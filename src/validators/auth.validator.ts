@@ -73,10 +73,6 @@ export const changePasswordSchema = z.object({
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{6,}$/,
       'Password must contain at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character'
     ),
-  confirmNewPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmNewPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmNewPassword'],
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;
