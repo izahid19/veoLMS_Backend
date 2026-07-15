@@ -14,6 +14,7 @@ export const createCourseSchema = z.object({
     .number()
     .min(0, 'Price cannot be negative'),
   isPublished: z.boolean().optional().default(false),
+  instructor: z.string().min(1, 'Instructor is required'),
 });
 
 export const updateCourseSchema = z
@@ -32,6 +33,7 @@ export const updateCourseSchema = z
     discountPercent: z.number().min(0).max(100).optional(),
     discountExpiresAt: z.string().nullable().optional(),
     taxPercent: z.number().optional(),
+    instructor: z.string().optional(),
   })
   .refine(
     (data) => Object.values(data).some((v) => v !== undefined),
