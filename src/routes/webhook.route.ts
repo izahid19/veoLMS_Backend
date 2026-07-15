@@ -21,9 +21,17 @@ router.post('/bunny/video-encoded', async (req: Request, res: Response) => {
   try {
     const { VideoGuid, Status } = req.body;
 
+    // Validate VideoGuid looks like a UUID before any DB access.
+    // This prevents injection of arbitrary IDs if the endpoint is ever hit
+    // by a source other than Bunny (the endpoint has no signature to verify).
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!VideoGuid || !UUID_RE.test(VideoGuid)) {
+      return res.status(200).json({ success: true, message: 'Invalid or missing VideoGuid' });
+    }
+
     // Status 3 = Finished (Encoding complete, fully available)
     // Status 4 = Resolution finished (Video playable)
-    if (!VideoGuid || (Status !== 3 && Status !== 4)) {
+    if (Status !== 3 && Status !== 4) {
       return res.status(200).json({ success: true, message: 'Ignored — not ready status' });
     }
 

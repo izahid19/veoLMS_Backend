@@ -70,6 +70,7 @@ const videoDiskStorage = multer.diskStorage({
 
 const videoMulter = multer({
   storage: videoDiskStorage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB — enforced per product requirement
   fileFilter: (_req, file, cb) => {
     const allowed = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'video/x-msvideo'];
     if (!allowed.includes(file.mimetype)) {
@@ -83,6 +84,9 @@ const videoMulter = multer({
 export const uploadVideo = (req: Request, res: Response, next: NextFunction) => {
   videoMulter.single('video')(req, res, (err: any) => {
     if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'Video file size must be under 500MB' });
+      }
       return res.status(400).json({ success: false, message: err.message });
     } else if (err) {
       if (err.message === 'INVALID_VIDEO_TYPE') {
