@@ -33,7 +33,7 @@ export const config = {
   // ── Bunny Storage (thumbnails, avatars) ────────────────────────────────────
   BUNNY_STORAGE_ZONE: process.env.BUNNY_STORAGE_ZONE || '',
   BUNNY_STORAGE_API_KEY: process.env.BUNNY_STORAGE_API_KEY || '',
-  BUNNY_STORAGE_HOST: process.env.BUNNY_STORAGE_HOST || 'de.storage.bunnycdn.com',
+  BUNNY_STORAGE_HOST: process.env.BUNNY_STORAGE_HOST || 'storage.bunnycdn.com',
   BUNNY_CDN_URL: process.env.BUNNY_CDN_URL || '',
 
   // ── Bunny Stream (lesson videos) ───────────────────────────────────────────
