@@ -61,7 +61,7 @@ export class CourseService {
     const course = await this.courseRepository.create({
       ...data,
       slug,
-      instructor: instructorId as any,
+      instructor: (data.instructor || instructorId) as any,
     });
 
     return course;
