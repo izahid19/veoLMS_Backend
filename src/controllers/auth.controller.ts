@@ -199,7 +199,9 @@ export class AuthController {
           lastName: updatedUser.lastName,
           username: updatedUser.username,
           emailId: updatedUser.emailId,
+          role: updatedUser.role,
           isUserVerify: updatedUser.isUserVerify,
+          avatar: updatedUser.avatar,
         },
       });
     } catch (error) {
