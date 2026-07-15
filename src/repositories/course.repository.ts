@@ -7,10 +7,11 @@ const INSTRUCTOR_POPULATE = {
 };
 
 const LIST_SELECT =
-  '_id title slug thumbnail price discountPercent discountExpiresAt taxPercent isPublished instructor totalLessons totalDuration createdAt';
+  '_id title slug thumbnail price discountPercent discountExpiresAt taxPercent isPublished isFeatured instructor totalLessons totalDuration createdAt';
 
 export interface CourseFilters {
   isPublished?: boolean;
+  isFeatured?: boolean;
   instructor?: string;
 }
 
@@ -32,6 +33,9 @@ export class CourseRepository {
 
     if (filters.isPublished !== undefined) {
       query.isPublished = filters.isPublished;
+    }
+    if (filters.isFeatured !== undefined) {
+      query.isFeatured = filters.isFeatured;
     }
     if (filters.instructor) {
       query.instructor = filters.instructor;
