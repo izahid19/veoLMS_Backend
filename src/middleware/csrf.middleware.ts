@@ -15,6 +15,7 @@ const CSRF_EXEMPT_PATHS = [
   '/api/auth/resend-otp',
   '/api/auth/resend-forgot-password-otp',
   '/api/auth/reset-password',
+  '/api/webhooks', // External webhooks (e.g. Bunny.net) do not contain CSRF tokens
 ];
 
 export const csrfMiddleware = (req: Request, res: Response, next: NextFunction) => {

@@ -21,8 +21,9 @@ router.post('/bunny/video-encoded', async (req: Request, res: Response) => {
   try {
     const { VideoGuid, Status } = req.body;
 
-    // Status 4 = encoding complete and ready
-    if (!VideoGuid || Status !== 4) {
+    // Status 3 = Finished (Encoding complete, fully available)
+    // Status 4 = Resolution finished (Video playable)
+    if (!VideoGuid || (Status !== 3 && Status !== 4)) {
       return res.status(200).json({ success: true, message: 'Ignored — not ready status' });
     }
 
