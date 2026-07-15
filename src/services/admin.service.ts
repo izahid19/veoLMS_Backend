@@ -247,7 +247,7 @@ export class AdminService {
       ]),
     ]);
 
-    const totalSpent = spentResult.length > 0 ? spentResult[0].total / 100 : 0;
+    const totalSpent = spentResult.length > 0 ? spentResult[0].total : 0;
 
     return { user, enrollments, totalSpent };
   }
